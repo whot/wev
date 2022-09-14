@@ -390,7 +390,7 @@ static void wl_keyboard_modifiers(void *data, struct wl_keyboard *wl_keyboard,
 		uint32_t mods_locked, uint32_t group) {
 	struct wev_state *state = data;
 	int n = proxy_log(state, (struct wl_proxy *)wl_keyboard, "modifiers",
-			"serial: %d; group: %d\n", group);
+			"serial: %d; group: %d\n", serial, group);
 	if (n != 0) {
 		printf(SPACER "depressed: %08X", mods_depressed);
 		print_modifiers(state, mods_depressed);
