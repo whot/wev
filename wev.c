@@ -247,7 +247,7 @@ static void wl_pointer_axis_stop(void *data, struct wl_pointer *wl_pointer,
 static void wl_pointer_axis_discrete(void *data, struct wl_pointer *wl_pointer,
 		uint32_t axis, int32_t discrete) {
 	struct wev_state *state = data;
-	proxy_log(state, (struct wl_proxy *)wl_pointer, "axis_stop",
+	proxy_log(state, (struct wl_proxy *)wl_pointer, "axis_discrete",
 			"axis: %d (%s), discrete: %d\n",
 			axis, pointer_axis_str(axis), discrete);
 }
