@@ -13,10 +13,18 @@ xdg-shell-protocol.c: xdg-shell-protocol.h
 	$(WAYLAND_SCANNER) private-code \
 		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
 
-wev: wev.c shm.c xdg-shell-protocol.c
+wayland-tablet-protocol.h:
+	$(WAYLAND_SCANNER) client-header \
+		$(WAYLAND_PROTOCOLS)/unstable/tablet/tablet-unstable-v2.xml $@
+
+wayland-tablet-protocol.c: wayland-tablet-protocol.h
+	$(WAYLAND_SCANNER) private-code \
+		$(WAYLAND_PROTOCOLS)/unstable/tablet/tablet-unstable-v2.xml $@
+
+wev: wev.c shm.c xdg-shell-protocol.c wayland-tablet-protocol.c
 	$(CC) $(CFLAGS) \
 		-g -std=c11 -I. \
-		-o wev wev.c shm.c xdg-shell-protocol.c \
+		-o wev wev.c shm.c xdg-shell-protocol.c wayland-tablet-protocol.c \
 		$(LIBS) -lrt
 
 wev.1: wev.1.scd
@@ -37,7 +45,7 @@ install: wev
 	install -m644 wev.1 $(DESTDIR)$(MANDIR)/man1/wev.1
 
 clean:
-	rm -f wev wev.1 xdg-shell-protocol.h xdg-shell-protocol.c
+	rm -f wev wev.1 xdg-shell-protocol.h xdg-shell-protocol.c wayland-tablet-protocol.h wayland-tablet-protocol.c
 
 .DEFAULT_GOAL=all
 .PHONY: all install clean

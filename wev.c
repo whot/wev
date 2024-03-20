@@ -15,6 +15,7 @@
 #include <xkbcommon/xkbcommon.h>
 #include "shm.h"
 #include "xdg-shell-protocol.h"
+#include "wayland-tablet-protocol.h"
 
 struct wev_filter {
 	char *interface;
@@ -53,6 +54,8 @@ struct wev_state {
 
 	struct wl_data_offer *selection;
 	struct wl_data_offer *dnd;
+
+	struct zwp_tablet_manager_v2 *tablet_manager;
 };
 
 #define SPACER "                      "
@@ -164,6 +167,12 @@ static const char *pointer_button_str(uint32_t button) {
 		return "back";
 	case BTN_TASK:
 		return "task";
+	case BTN_STYLUS:
+		return "stylus";
+	case BTN_STYLUS2:
+		return "stylus2";
+	case BTN_STYLUS3:
+		return "stylus3";
 	default:
 		return "unknown";
 	}
@@ -819,6 +828,510 @@ static const struct wl_data_device_listener wl_data_device_listener = {
 	.selection = wl_data_device_selection,
 };
 
+static void tablet_name(void *data, struct zwp_tablet_v2 *tablet,
+		const char *name) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet, "name", "%s\n", name);
+}
+
+static void tablet_id(void *data, struct zwp_tablet_v2 *tablet,
+		uint32_t vid, uint32_t pid) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet, "id",
+			"vid: 0x%04x pid: 0x%04x\n", vid, pid);
+}
+
+static void tablet_path(void *data, struct zwp_tablet_v2 *tablet,
+		const char *path) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet, "path", "%s\n", path);
+}
+
+static void tablet_done(void *data, struct zwp_tablet_v2 *tablet) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet, "done", "\n");
+}
+
+static void tablet_removed(void *data, struct zwp_tablet_v2 *tablet) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet, "removed", "\n");
+}
+
+static const struct zwp_tablet_v2_listener tablet_listener = {
+	.name = tablet_name,
+	.id = tablet_id,
+	.path = tablet_path,
+	.done = tablet_done,
+	.removed = tablet_removed,
+};
+
+static void tablet_added(void *data, struct zwp_tablet_seat_v2 *seat,
+		struct zwp_tablet_v2 *id) {
+	struct wev_state *state = data;
+	zwp_tablet_v2_add_listener(id, &tablet_listener, state);
+	proxy_log(state, (struct wl_proxy *)seat, "tablet_added", "%u\n",
+			wl_proxy_get_id((struct wl_proxy *)id));
+}
+
+static const char *tablet_tool_type_str(uint32_t type) {
+	switch (type) {
+	case ZWP_TABLET_TOOL_V2_TYPE_PEN:
+		return "pen";
+	case ZWP_TABLET_TOOL_V2_TYPE_ERASER:
+		return "eraser";
+	case ZWP_TABLET_TOOL_V2_TYPE_BRUSH:
+		return "brush";
+	case ZWP_TABLET_TOOL_V2_TYPE_PENCIL:
+		return "pencil";
+	case ZWP_TABLET_TOOL_V2_TYPE_AIRBRUSH:
+		return "airbrush";
+	case ZWP_TABLET_TOOL_V2_TYPE_FINGER:
+		return "finger";
+	case ZWP_TABLET_TOOL_V2_TYPE_MOUSE:
+		return "mouse";
+	case ZWP_TABLET_TOOL_V2_TYPE_LENS:
+		return "lens";
+	default:
+		return "unknown";
+	}
+}
+
+static void tablet_tool_type(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool, uint32_t type) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "type",
+			"type: %d (%s)\n", type, tablet_tool_type_str(type));
+}
+
+static void tablet_tool_hardware_serial(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		uint32_t hw_serial_hi, uint32_t hw_serial_lo) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool,
+			"hardware_serial", "hi, lo: 0x%08x 0x%08x\n",
+			hw_serial_hi, hw_serial_lo);
+}
+
+static void tablet_tool_hardware_id_wacom(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		uint32_t hardware_id_hi, uint32_t hardware_id_lo) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool,
+			"hardware_id_wacom", "hi, lo: 0x%08x 0x%08x\n",
+			hardware_id_hi, hardware_id_lo);
+}
+
+static const char *tablet_tool_capability_str(uint32_t capability) {
+	switch (capability) {
+	case ZWP_TABLET_TOOL_V2_CAPABILITY_TILT :
+		return "tilt";
+	case ZWP_TABLET_TOOL_V2_CAPABILITY_PRESSURE :
+		return "pressure";
+	case ZWP_TABLET_TOOL_V2_CAPABILITY_DISTANCE :
+		return "distance";
+	case ZWP_TABLET_TOOL_V2_CAPABILITY_ROTATION :
+		return "rotation";
+	case ZWP_TABLET_TOOL_V2_CAPABILITY_SLIDER :
+		return "slider";
+	case ZWP_TABLET_TOOL_V2_CAPABILITY_WHEEL :
+		return "wheel";
+	default:
+		return "unknown";
+	}
+}
+
+static void tablet_tool_capability(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool, uint32_t capability) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "capability",
+			"capability: %d (%s)\n", capability,
+			tablet_tool_capability_str(capability));
+}
+
+static void tablet_tool_done(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "done", "\n");
+}
+
+static void tablet_tool_removed(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "removed", "\n");
+}
+
+static void tablet_tool_proximity_in(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		uint32_t serial, struct zwp_tablet_v2 *tablet,
+		struct wl_surface *surface) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "proximity_in",
+			"serial: %d; tablet: %u; surface: %d\n",
+			serial, wl_proxy_get_id((struct wl_proxy *)tablet),
+			wl_proxy_get_id((struct wl_proxy *)surface));
+}
+
+static void tablet_tool_proximity_out(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool,
+			"proximity_out", "\n");
+}
+
+static void tablet_tool_down(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		uint32_t serial) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "down",
+			"serial: %d\n", serial);
+}
+
+static void tablet_tool_up(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "up", "\n");
+}
+
+static void tablet_tool_motion(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		wl_fixed_t x, wl_fixed_t y) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "motion",
+			"x, y: %f, %f\n",
+			wl_fixed_to_double(x), wl_fixed_to_double(y));
+}
+
+static void tablet_tool_pressure(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool, uint32_t pressure) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "pressure",
+			"%d (%.3f)\n", pressure,
+			(double)pressure/0xffff);
+}
+
+static void tablet_tool_distance(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		uint32_t distance) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "distance",
+			"%d (%.3f)\n", distance,
+			(double)distance/0xffff);
+}
+
+static void tablet_tool_tilt(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		wl_fixed_t x, wl_fixed_t y) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "tilt",
+			"x, y: %f, %f\n",
+			wl_fixed_to_double(x), wl_fixed_to_double(y));
+}
+
+static void tablet_tool_rotation(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		wl_fixed_t degrees) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "rotation",
+			"degrees: %f\n", wl_fixed_to_double(degrees));
+}
+
+static void tablet_tool_slider(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		int32_t position) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "slider",
+			"position: %d (%.3f)\n", position,
+			(double)position/0xffff);
+}
+
+static void tablet_tool_wheel(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		wl_fixed_t degrees, int32_t clicks) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "wheel",
+			"wheel: %f, clicks: %d\n", degrees, clicks);
+}
+
+static void tablet_tool_button(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool,
+		uint32_t serial, uint32_t button, uint32_t state) {
+	struct wev_state *wev_state = data;
+	proxy_log(wev_state, (struct wl_proxy *)tablet_tool, "button",
+			"serial: %d;  button: %d (%s), state: %d (%s)\n",
+			serial, button, pointer_button_str(button),
+			state, pointer_state_str(state));
+}
+
+static void tablet_tool_frame(void *data,
+		struct zwp_tablet_tool_v2 *tablet_tool, uint32_t time) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet_tool, "frame",
+			"time: %d\n", time);
+}
+
+static const struct zwp_tablet_tool_v2_listener tablet_tool_listener = {
+	.type = tablet_tool_type,
+	.hardware_serial = tablet_tool_hardware_serial,
+	.hardware_id_wacom = tablet_tool_hardware_id_wacom,
+	.capability = tablet_tool_capability,
+	.done = tablet_tool_done,
+	.removed = tablet_tool_removed,
+	.proximity_in = tablet_tool_proximity_in,
+	.proximity_out = tablet_tool_proximity_out,
+	.down = tablet_tool_down,
+	.up = tablet_tool_up,
+	.motion = tablet_tool_motion,
+	.pressure = tablet_tool_pressure,
+	.distance = tablet_tool_distance,
+	.tilt = tablet_tool_tilt,
+	.rotation = tablet_tool_rotation,
+	.slider = tablet_tool_slider,
+	.wheel = tablet_tool_wheel,
+	.button = tablet_tool_button,
+	.frame = tablet_tool_frame,
+};
+
+static const char *tablet_ring_axis_source_str(uint32_t axis_source) {
+	switch (axis_source) {
+	case ZWP_TABLET_PAD_RING_V2_SOURCE_FINGER:
+		return "finger";
+	default:
+		return "unknown";
+	}
+}
+
+static void tablet_ring_source(void *data,
+		struct zwp_tablet_pad_ring_v2 *ring, uint32_t source) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)ring, "source",
+			"%d (%s)\n", source,
+			tablet_ring_axis_source_str(source));
+}
+
+static void tablet_ring_angle(void *data,
+		struct zwp_tablet_pad_ring_v2 *ring, wl_fixed_t degrees) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)ring, "angle",
+			"%f\n", wl_fixed_to_double(degrees));
+}
+
+static void tablet_ring_stop(void *data,
+		struct zwp_tablet_pad_ring_v2 *ring) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)ring, "stop", "\n");
+}
+
+static void tablet_ring_frame(void *data,
+		struct zwp_tablet_pad_ring_v2 *ring, uint32_t time) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)ring, "frame",
+			"time: %d\n", time);
+}
+
+static const struct zwp_tablet_pad_ring_v2_listener tablet_ring_listener = {
+	.source = tablet_ring_source,
+	.angle = tablet_ring_angle,
+	.stop = tablet_ring_stop,
+	.frame = tablet_ring_frame,
+};
+
+static const char *tablet_strip_axis_source_str(uint32_t axis_source) {
+	switch (axis_source) {
+	case ZWP_TABLET_PAD_STRIP_V2_SOURCE_FINGER:
+		return "finger";
+	default:
+		return "unknown";
+	}
+}
+
+static void tablet_strip_source(void *data,
+		struct zwp_tablet_pad_strip_v2 *strip, uint32_t source) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)strip, "source",
+			"%d (%s)\n", source,
+			tablet_strip_axis_source_str(source));
+}
+
+static void tablet_strip_position(void *data,
+		struct zwp_tablet_pad_strip_v2 *strip, uint32_t position) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)strip, "position",
+			"%f\n", wl_fixed_to_double(position));
+}
+
+static void tablet_strip_stop(void *data, struct zwp_tablet_pad_strip_v2 *strip) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)strip, "stop", "\n");
+}
+
+static void tablet_strip_frame(void *data,
+		struct zwp_tablet_pad_strip_v2 *strip, uint32_t time) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)strip, "frame",
+			"time: %d\n", time);
+}
+
+static const struct zwp_tablet_pad_strip_v2_listener tablet_strip_listener = {
+	.source = tablet_strip_source,
+	.position = tablet_strip_position,
+	.stop = tablet_strip_stop,
+	.frame = tablet_strip_frame,
+};
+
+static void tablet_pad_group_buttons(void *data,
+		struct zwp_tablet_pad_group_v2 *pad_group,
+		struct wl_array *buttons) {
+	struct wev_state *state = data;
+	uint32_t *b;
+
+	int n = proxy_log(state, (struct wl_proxy *)pad_group, "buttons",
+				"buttons: ");
+	if (n != 0) {
+		wl_array_for_each(b, buttons) {
+			printf("%d ", *b);
+		}
+		printf("\n");
+	}
+}
+
+static void tablet_pad_group_ring(void *data,
+		struct zwp_tablet_pad_group_v2 *pad_group,
+		struct zwp_tablet_pad_ring_v2 *ring) {
+	struct wev_state *state = data;
+	zwp_tablet_pad_ring_v2_add_listener(ring, &tablet_ring_listener, state);
+}
+
+static void tablet_pad_group_strip(void *data,
+		struct zwp_tablet_pad_group_v2 *pad_group,
+		struct zwp_tablet_pad_strip_v2 *strip) {
+	struct wev_state *state = data;
+	zwp_tablet_pad_strip_v2_add_listener(strip, &tablet_strip_listener, state);
+}
+
+static void tablet_pad_group_modes(void *data,
+		struct zwp_tablet_pad_group_v2 *pad_group,
+		uint32_t modes) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad_group, "modes",
+			"%d\n", modes);
+}
+
+static void tablet_pad_group_done(void *data,
+		struct zwp_tablet_pad_group_v2 *pad_group) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad_group, "done", "\n");
+}
+
+static void tablet_pad_group_mode_switch(void *data,
+		struct zwp_tablet_pad_group_v2 *pad_group,
+		uint32_t time, uint32_t serial, uint32_t mode) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad_group, "mode_switch",
+			"time: %d; serial: %d; mode: %d\n",
+			time, serial, mode);
+}
+
+static const struct zwp_tablet_pad_group_v2_listener tablet_pad_group_listener = {
+	.buttons = tablet_pad_group_buttons,
+	.ring = tablet_pad_group_ring,
+	.strip = tablet_pad_group_strip,
+	.modes = tablet_pad_group_modes,
+	.done = tablet_pad_group_done,
+	.mode_switch = tablet_pad_group_mode_switch,
+};
+
+static void tablet_tool_added(void *data, struct zwp_tablet_seat_v2 *seat,
+		struct zwp_tablet_tool_v2 *id) {
+	struct wev_state *state = data;
+	zwp_tablet_tool_v2_add_listener(id, &tablet_tool_listener, state);
+	proxy_log(state, (struct wl_proxy *)seat, "tool_added", "%u\n",
+			wl_proxy_get_id((struct wl_proxy *)id));
+}
+
+static void tablet_pad_group(void *data, struct zwp_tablet_pad_v2 *pad,
+		struct zwp_tablet_pad_group_v2 *pad_group) {
+	struct wev_state *state = data;
+	zwp_tablet_pad_group_v2_add_listener (pad_group,
+			&tablet_pad_group_listener, state);
+	proxy_log(state, (struct wl_proxy *)pad, "group", "%u\n",
+			wl_proxy_get_id((struct wl_proxy *)pad_group));
+}
+
+static void tablet_pad_path(void *data, struct zwp_tablet_pad_v2 *pad,
+		const char *path) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad, "path", "%s\n", path);
+}
+
+static void tablet_pad_buttons(void *data, struct zwp_tablet_pad_v2 *pad,
+		uint32_t buttons) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad, "buttons",
+			"%d\n", buttons);
+}
+
+static void tablet_pad_done(void *data, struct zwp_tablet_pad_v2 *pad) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad, "done", "\n");
+}
+
+static void tablet_pad_button(void *data, struct zwp_tablet_pad_v2 *pad,
+		uint32_t time, uint32_t button, uint32_t state) {
+	struct wev_state *wev_state = data;
+	proxy_log(wev_state, (struct wl_proxy *)pad, "button",
+			"time: %d; button: %d, state: %d (%s)\n",
+			time, button, state, pointer_state_str(state));
+}
+
+static void tablet_pad_enter(void *data, struct zwp_tablet_pad_v2 *pad,
+		uint32_t serial, struct zwp_tablet_v2 *tablet,
+		struct wl_surface *surface) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad, "enter",
+			"serial: %d; tablet: %u; surface: %d\n", serial,
+			wl_proxy_get_id((struct wl_proxy *)tablet),
+			wl_proxy_get_id((struct wl_proxy *)surface));
+}
+
+static void tablet_pad_leave(void *data, struct zwp_tablet_pad_v2 *pad,
+		uint32_t serial, struct wl_surface *surface) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad, "leave",
+			"serial: %d; surface: %d\n", serial,
+			wl_proxy_get_id((struct wl_proxy *)surface));
+}
+
+static void tablet_pad_removed(void *data, struct zwp_tablet_pad_v2 *pad) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)pad, "removed", "\n");
+}
+
+static const struct zwp_tablet_pad_v2_listener tablet_pad_listener = {
+	.group = tablet_pad_group,
+	.path = tablet_pad_path,
+	.buttons = tablet_pad_buttons,
+	.done = tablet_pad_done,
+	.button = tablet_pad_button,
+	.enter = tablet_pad_enter,
+	.leave = tablet_pad_leave,
+	.removed = tablet_pad_removed,
+};
+
+static void tablet_pad_added(void *data,
+		struct zwp_tablet_seat_v2 *seat,
+		struct zwp_tablet_pad_v2 *id) {
+	struct wev_state *state = data;
+	zwp_tablet_pad_v2_add_listener(id, &tablet_pad_listener, state);
+	proxy_log(state, (struct wl_proxy *)seat, "pad_added", "%u\n",
+			wl_proxy_get_id((struct wl_proxy *)id));
+}
+
+static const struct zwp_tablet_seat_v2_listener tablet_seat_listener = {
+	.tablet_added = tablet_added,
+	.tool_added = tablet_tool_added,
+	.pad_added = tablet_pad_added,
+};
+
 static void registry_global(void *data, struct wl_registry *wl_registry,
 		uint32_t name, const char *interface, uint32_t version) {
 	struct wev_state *state = data;
@@ -833,6 +1346,7 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
 		{ &xdg_wm_base_interface, 2, (void **)&state->wm_base },
 		{ &wl_data_device_manager_interface, 3,
 			(void **)&state->data_device_manager },
+		{ &zwp_tablet_manager_v2_interface, 1, (void **)&state->tablet_manager },
 	};
 
 	for (size_t i = 0; i < sizeof(handles) / sizeof(handles[0]); ++i) {
@@ -960,6 +1474,12 @@ int main(int argc, char *argv[]) {
 		wl_data_device_manager_get_data_device(state.data_device_manager,
 				state.seat);
 	wl_data_device_add_listener(data_device, &wl_data_device_listener, &state);
+
+	if (state.tablet_manager) {
+		struct zwp_tablet_seat_v2 *tablet_seat =
+			zwp_tablet_manager_v2_get_tablet_seat(state.tablet_manager, state.seat);
+		zwp_tablet_seat_v2_add_listener(tablet_seat, &tablet_seat_listener, &state);
+	}
 
 	wl_surface_commit(state.surface);
 	wl_display_roundtrip(state.display);
