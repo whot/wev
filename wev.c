@@ -260,6 +260,15 @@ static void wl_pointer_axis_value120(void *data, struct wl_pointer *wl_pointer,
 			axis, pointer_axis_str(axis), value120);
 }
 
+static void wl_pointer_axis_relative_direction(void *data,
+		struct wl_pointer *wl_pointer, uint32_t axis,
+		uint32_t direction) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)wl_pointer, "axis_relative_direction",
+			"axis: %d (%s), direction: %d\n",
+			axis, pointer_axis_str(axis), direction);
+}
+
 static const struct wl_pointer_listener wl_pointer_listener = {
 	.enter = wl_pointer_enter,
 	.leave = wl_pointer_leave,
@@ -271,6 +280,7 @@ static const struct wl_pointer_listener wl_pointer_listener = {
 	.axis_stop = wl_pointer_axis_stop,
 	.axis_discrete = wl_pointer_axis_discrete,
 	.axis_value120 = wl_pointer_axis_value120,
+	.axis_relative_direction = wl_pointer_axis_relative_direction,
 };
 
 static const char *keymap_format_str(uint32_t format) {
@@ -818,7 +828,7 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
 		void **ptr;
 	} handles[] = {
 		{ &wl_compositor_interface, 4, (void **)&state->compositor },
-		{ &wl_seat_interface, 8, (void **)&state->seat },
+		{ &wl_seat_interface, 9, (void **)&state->seat },
 		{ &wl_shm_interface, 1, (void **)&state->shm },
 		{ &xdg_wm_base_interface, 2, (void **)&state->wm_base },
 		{ &wl_data_device_manager_interface, 3,
