@@ -13,7 +13,7 @@ xdg-shell-protocol.c: xdg-shell-protocol.h
 	$(WAYLAND_SCANNER) private-code \
 		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
 
-wev: wev.c shm.c xdg-shell-protocol.h xdg-shell-protocol.c
+wev: wev.c shm.c xdg-shell-protocol.c
 	$(CC) $(CFLAGS) \
 		-g -std=c11 -I. \
 		-o wev wev.c shm.c xdg-shell-protocol.c \
