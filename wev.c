@@ -818,8 +818,10 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
 
 	for (size_t i = 0; i < sizeof(handles) / sizeof(handles[0]); ++i) {
 		if (strcmp(interface, handles[i].interface->name) == 0) {
+			if (handles[i].version < version)
+				version = handles[i].version;
 			*handles[i].ptr = wl_registry_bind(wl_registry,
-					name, handles[i].interface, handles[i].version);
+					name, handles[i].interface, version);
 		}
 	}
 
