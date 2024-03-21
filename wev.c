@@ -89,7 +89,7 @@ static int proxy_log(struct wev_state *state,
 	}
 
 	int n = 0;
-	n += printf("[%02u:%16s] %s%s",
+	n += printf("[%10u:%16s] %s%s",
 			wl_proxy_get_id(proxy),
 			class, event, strcmp(fmt, "\n") != 0 ? ": " : "");
 	va_list ap;
