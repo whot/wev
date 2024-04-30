@@ -15,11 +15,11 @@ xdg-shell-protocol.c: xdg-shell-protocol.h
 
 wayland-tablet-protocol.h:
 	$(WAYLAND_SCANNER) client-header \
-		$(WAYLAND_PROTOCOLS)/unstable/tablet/tablet-unstable-v2.xml $@
+		$(WAYLAND_PROTOCOLS)/stable/tablet/tablet-v2.xml $@
 
 wayland-tablet-protocol.c: wayland-tablet-protocol.h
 	$(WAYLAND_SCANNER) private-code \
-		$(WAYLAND_PROTOCOLS)/unstable/tablet/tablet-unstable-v2.xml $@
+		$(WAYLAND_PROTOCOLS)/stable/tablet/tablet-v2.xml $@
 
 wev: wev.c shm.c xdg-shell-protocol.c wayland-tablet-protocol.c
 	$(CC) $(CFLAGS) \
