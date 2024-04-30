@@ -1475,9 +1475,11 @@ int main(int argc, char *argv[]) {
 				state.seat);
 	wl_data_device_add_listener(data_device, &wl_data_device_listener, &state);
 
-	struct zwp_tablet_seat_v2 *tablet_seat =
-		zwp_tablet_manager_v2_get_tablet_seat(state.tablet_manager, state.seat);
-	zwp_tablet_seat_v2_add_listener(tablet_seat, &tablet_seat_listener, &state);
+    if (state.tablet_manager) {
+        struct zwp_tablet_seat_v2 *tablet_seat =
+            zwp_tablet_manager_v2_get_tablet_seat(state.tablet_manager, state.seat);
+        zwp_tablet_seat_v2_add_listener(tablet_seat, &tablet_seat_listener, &state);
+    }
 
 	wl_surface_commit(state.surface);
 	wl_display_roundtrip(state.display);
