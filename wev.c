@@ -857,12 +857,19 @@ static void tablet_removed(void *data, struct zwp_tablet_v2 *tablet) {
 	proxy_log(state, (struct wl_proxy *)tablet, "removed", "\n");
 }
 
+static void tablet_bustype(void *data, struct zwp_tablet_v2 *tablet,
+    uint32_t bustype) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)tablet, "bustype", "bustype: %d\n", bustype);
+}
+
 static const struct zwp_tablet_v2_listener tablet_listener = {
 	.name = tablet_name,
 	.id = tablet_id,
 	.path = tablet_path,
 	.done = tablet_done,
 	.removed = tablet_removed,
+	.bustype = tablet_bustype,
 };
 
 static void tablet_added(void *data, struct zwp_tablet_seat_v2 *seat,
@@ -1178,6 +1185,25 @@ static const struct zwp_tablet_pad_strip_v2_listener tablet_strip_listener = {
 	.frame = tablet_strip_frame,
 };
 
+static void tablet_dial_delta(void *data,
+		struct zwp_tablet_pad_dial_v2 *dial, int32_t value120) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)dial, "delta",
+			"%d\n", value120);
+}
+
+static void tablet_dial_frame(void *data,
+		struct zwp_tablet_pad_dial_v2 *dial, uint32_t time) {
+	struct wev_state *state = data;
+	proxy_log(state, (struct wl_proxy *)dial, "frame",
+			"time: %d\n", time);
+}
+
+static const struct zwp_tablet_pad_dial_v2_listener tablet_dial_listener = {
+	.delta = tablet_dial_delta,
+	.frame = tablet_dial_frame,
+};
+
 static void tablet_pad_group_buttons(void *data,
 		struct zwp_tablet_pad_group_v2 *pad_group,
 		struct wl_array *buttons) {
@@ -1231,6 +1257,13 @@ static void tablet_pad_group_mode_switch(void *data,
 			time, serial, mode);
 }
 
+static void tablet_pad_group_dial(void *data,
+		struct zwp_tablet_pad_group_v2 *pad_group,
+		struct zwp_tablet_pad_dial_v2 *dial) {
+	struct wev_state *state = data;
+	zwp_tablet_pad_dial_v2_add_listener(dial, &tablet_dial_listener, state);
+}
+
 static const struct zwp_tablet_pad_group_v2_listener tablet_pad_group_listener = {
 	.buttons = tablet_pad_group_buttons,
 	.ring = tablet_pad_group_ring,
@@ -1238,6 +1271,7 @@ static const struct zwp_tablet_pad_group_v2_listener tablet_pad_group_listener =
 	.modes = tablet_pad_group_modes,
 	.done = tablet_pad_group_done,
 	.mode_switch = tablet_pad_group_mode_switch,
+	.dial = tablet_pad_group_dial,
 };
 
 static void tablet_tool_added(void *data, struct zwp_tablet_seat_v2 *seat,
@@ -1346,7 +1380,7 @@ static void registry_global(void *data, struct wl_registry *wl_registry,
 		{ &xdg_wm_base_interface, 2, (void **)&state->wm_base },
 		{ &wl_data_device_manager_interface, 3,
 			(void **)&state->data_device_manager },
-		{ &zwp_tablet_manager_v2_interface, 1, (void **)&state->tablet_manager },
+		{ &zwp_tablet_manager_v2_interface, 2, (void **)&state->tablet_manager },
 	};
 
 	for (size_t i = 0; i < sizeof(handles) / sizeof(handles[0]); ++i) {
