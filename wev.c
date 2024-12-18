@@ -281,7 +281,7 @@ static void wl_keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
 	proxy_log(state, (struct wl_proxy *)wl_keyboard, "keymap",
 			"format: %d (%s), size: %d\n",
 			format, keymap_format_str(format), size);
-	char *map_shm = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+	char *map_shm = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (map_shm == MAP_FAILED) {
 		close(fd);
 		fprintf(stderr, "Unable to mmap keymap: %s", strerror(errno));
